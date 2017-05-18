@@ -1,0 +1,208 @@
+---
+title: "Survival Analysis of Crowdfunding Campaigns"
+author: "John Mohoang and Muath Ibaid"
+date: "November 19, 2016"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Loading libraries: 
+
+```{r}
+library(survival)
+```
+
+#reading data: 
+
+```{r}
+goFundMe = read.csv("C:/Users/John/OneDrive/School/Mac/Math 453 - Survival Analysis/Project/fixdate/go2.csv")
+```
+
+#reading data with Python to create Season variable:
+
+```
+import csv
+def main():
+  fr = open("/Users/mibaid/Desktop/go2W.csv", 'rU')
+  fw = open("/Users/mibaid/Desktop/go2WSeason.csv", 'w')
+  writer = csv.writer(fw)
+  reader = csv.reader(fr)
+  myList = []
+  #for r in reader:
+    #myList.append(', ', join(r))
+  
+  for row in reader: 
+    rowSeason = []
+    
+    dateCreated = row[9]
+    season = ''
+    if "September" in dateCreated:
+      season = "Fall"
+      #row.append(season)
+    elif "October" in dateCreated: 
+      season = "Fall"
+    elif "November" in dateCreated: 
+      season = "Fall"      
+    elif "December" in dateCreated: 
+      season = "Winter"      
+    elif "January" in dateCreated: 
+      season = "Winter"
+    elif "February" in dateCreated: 
+      season = "Winter"      
+    elif "March" in dateCreated: 
+      season = "Spring"      
+    elif "April" in dateCreated: 
+      season = "Spring"      
+    elif "May" in dateCreated: 
+      season = "Spring"      
+    elif "June" in dateCreated: 
+      season = "Summer"      
+    elif "July" in dateCreated: 
+      season = "Summer"
+    elif "August" in dateCreated: 
+      season = "Summer"      
+    row.append(season)
+    writer.writerow(row)
+  fr.close()
+  fw.close()
+      
+main()
+```
+
+
+
+# Creating a subgroup: 
+```{r}
+#five most common cat:
+#Family
+#Events
+#NewlyWeds
+#Travel
+#Animals
+#Sports
+#Medical
+
+goFundMeSub = subset(goFundMe, category == "Family" | category == "Events" |category == "NewlyWeds" |category == "Travel" |category == "Animals" | category == "Sports")
+```
+
+
+#Making "Other Category"
+
+```{r}
+#within(junk, levels(nm)[levels(nm) == "B"] <- "b")
+
+levels(goFundMe$category)[levels(goFundMe$category) == "Community" ] = "Other"
+levels(goFundMe$category)[levels(goFundMe$category) == "Business" ] = "Other"
+levels(goFundMe$category)[levels(goFundMe$category) == "Charity" ] = "Other"
+levels(goFundMe$category)[levels(goFundMe$category) == "Competitions" ] = "Other"
+levels(goFundMe$category)[levels(goFundMe$category) == "Creative" ] = "Other"
+levels(goFundMe$category)[levels(goFundMe$category) == "Education" ] = "Other"
+levels(goFundMe$category)[levels(goFundMe$category) == "Emergencies" ] = "Other"
+levels(goFundMe$category)[levels(goFundMe$category) == "Faith" ] = "Other"
+levels(goFundMe$category)[levels(goFundMe$category) == "Memorials" ] = "Other"
+levels(goFundMe$category)[levels(goFundMe$category) == "Volunteer" ] = "Other"
+levels(goFundMe$category)[levels(goFundMe$category) == "Wishes" ] = "Other"
+
+```
+
+-------------
+
+### We want to first compare all parametric models: [lognormal, exponential, Weibull, Gaussian]. We need to do AIC test to decide which model to use
+### Fit a coxPH model and look at the covariates 
+### Explore Schoenfeld and CLogLog to see whether our covariates are elequent
+
+-----------------
+
+#AFT Models:
+
+##Lognormal: 
+
+```{r}
+ln = survreg (Surv(DurationOfcampaign+0.001, status) ~ factor(category) + socialMediaShares + Negative + Positive + season, data = goFundMe, dist = "lognormal")
+summary (ln)
+```
+
+##normal: 
+
+```{r}
+n = survreg (Surv(DurationOfcampaign+0.001, status) ~ factor(category) + socialMediaShares + Negative + Positive + season, data = goFundMe, dist = 'gaussian')
+summary (n)
+```
+
+##Exponential: 
+
+```{r}
+expl = survreg (Surv(DurationOfcampaign+0.001, status) ~ factor(category) + socialMediaShares + Negative + Positive + season, data = goFundMe, dist = 'exponential')
+summary (expl)
+```
+
+##Weibull: 
+
+```{r}
+wei = survreg (Surv(DurationOfcampaign+0.001, status) ~ factor(category) + socialMediaShares + Negative + Positive + season, data = goFundMe, dist = 'weibull')
+summary (wei)
+```
+
+-------------------------
+
+#Calculating AIC's:
+
+```{r}
+#AIC = 2*(p-L)
+#lognormal: 
+AICln = 2 * (15 - -9865.1)
+AICn = 2 * (15 - -11765.4)
+AICexpl = 2 * (14 - -10102.8)
+AICwei = 2 * (15 - -9847.2)
+
+
+AICexpl
+AICln 
+AICn 
+AICwei
+
+min(AICexpl, AICln, AICn, AICwei)
+```
+
+
+### We are choosing the Weibull model.
+
+## let's plot that and tesdt it on the graph vs KM: 
+
+```{r}
+wei = survreg (Surv(DurationOfcampaign+0.001, status) ~ factor(category) + socialMediaShares + Negative + Positive + season, data = goFundMe, dist = 'weibull')
+
+#curve( 1 - pweibull(x, shape = 1/1.49, scale = exp( 6.35 + 6.46e-01*mean(factor(category)Other) + -2.47e-01*)))
+
+#KM = survfit( Surv(DurationOfcampaign, status) ~ factor(category) + socialMediaShares + Negative + Positive + season, data = goFundMe)
+
+```
+
+
+
+
+
+
+
+
+
+
+#CoxPH: 
+
+```{r}
+cx = coxph(Surv(DurationOfcampaign, status) ~ season, data = goFundMe)
+cx
+```
+
+
+
+
+
+
+
